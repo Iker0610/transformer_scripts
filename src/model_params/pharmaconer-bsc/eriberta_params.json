@@ -1,0 +1,38 @@
+{
+  "do_train": true,
+  "do_eval": true,
+  "do_predict": true,
+
+  "train_file": "/tartalo03/users/udixa/ikasiker/Eriberta/eriberta_evaluation/corpus/pharmaconer-bsc/train-set_1.1.conll",
+  "dev_file": "/tartalo03/users/udixa/ikasiker/Eriberta/eriberta_evaluation/corpus/pharmaconer-bsc/dev-set_1.1.conll",
+  "test_file": "/tartalo03/users/udixa/ikasiker/Eriberta/eriberta_evaluation/corpus/pharmaconer-bsc/test-set_1.1.conll",
+
+  "dataset_loading_script": "/tartalo03/users/udixa/ikasiker/Eriberta/eriberta_evaluation/corpus/pharmaconer-bsc/pharmaconer.py",
+  "dataset_cache_dir": "/gscratch/users/idelaiglesia004/eriberta_evaluation/dataset_cache",
+  "overwrite_cache": true,
+
+  "model_path": "PlanTL-GOB-ES/roberta-base-biomedical-clinical-es",
+  "output_dir": "/gscratch/users/idelaiglesia004/eriberta_evaluation/model_output/pharmaconer-bsc/bio-cli/VAR_LR/prueba_X",
+  "overwrite_output_dir": true,
+
+  "pad_to_max_length": true,
+  "use_sliding_window": false,
+  "stride_size": 0,
+  "return_entity_level_metrics": false,
+
+  "learning_rate": VAR_LR,
+  "seed": VAR_SEED,
+
+  "evaluation_strategy": "epoch",
+  "save_strategy" : "epoch",
+  "metric_for_best_model": "f1",
+  "save_total_limit": 1,
+  "load_best_model_at_end": true,
+
+  "fp16": true,
+
+  "num_train_epochs": 10,
+  "per_device_train_batch_size": 32,
+  "per_device_eval_batch_size": 32,
+  "gradient_accumulation_steps": 1
+}
