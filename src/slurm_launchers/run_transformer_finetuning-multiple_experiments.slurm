@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=eriberta_pharmaconer_eval
+#SBATCH --job-name=MY_TRANSFORMER_eval
 #SBATCH --cpus-per-task=1
 #SBATCH --gres=gpu:1
 #SBATCH --mem=250M
@@ -10,18 +10,18 @@
 
 source /var/python3envs/transformers-4.12.3/bin/activate
 
-export HF_HOME=/gscratch/users/idelaiglesia004/eriberta_evaluation
-export TRANSFORMERS_CACHE=/gscratch/users/idelaiglesia004/eriberta_evaluation/transformers
+export HF_HOME=/gscratch/users/USER/MY_TRANSFORMER_evaluation
+export TRANSFORMERS_CACHE=/gscratch/users/USER/MY_TRANSFORMER_evaluation/transformers
 
 #---------------------------------------------------------
 # Definir paths (a ser posible que sean absolutos)
 
-OUTPUT_PATH='/gscratch/users/idelaiglesia004/eriberta_evaluation/model_output/pharmaconer-bsc/eriberta'
+OUTPUT_PATH='/gscratch/users/USER/MY_TRANSFORMER_evaluation/model_output/DATASET/MY_TRANSFORMER'
 
-SRC_PATH='/tartalo03/users/udixa/ikasiker/Eriberta/eriberta_evaluation/src/'
-json_path="$SRC_PATH/model_params/pharmaconer-bsc/bio-cli_params.json"
-train_script_path="$SRC_PATH/scripts/train_transformer_Pytorch.py"
-cleaner_script_path="$SRC_PATH/scripts/experiment_cleaner.py"
+SRC_PATH='/tartalo03/users/udixa/ikasiker/MY_TRANSFORMER/MY_TRANSFORMER_evaluation/src/'
+json_path="$SRC_PATH/model_params/DATASET/MY_TRANSFORMER_params.json"
+train_script_path="$SRC_PATH/scripts/train_transformer_pytorch_allMetrics.py"
+cleaner_script_path="$SRC_PATH/scripts/utils/experiment_cleaner.py"
 
 #---------------------------------------------------------
 
@@ -34,7 +34,7 @@ function train-transformer() {
   for i in {1..10}; do
 
     # Copiamos la plantilla de los parámetros que hay que pasarle al script de entrenamiento
-    cp "$SRC_PATH/model_params/pharmaconer-bsc/plantilla_eriberta_params.json" "$json_path"
+    cp "$SRC_PATH/model_params/DATASET/plantilla_MY_TRANSFORMER_params.json" "$json_path"
 
     # Generamos una seed random
     seed=$(shuf -i 0-5500 -n 1)

@@ -531,7 +531,7 @@ def main():
                     if file_indx != previous_file_indx:
                         if previous_file_indx is not None:
                             writer.write('\n\n')
-                        writer.write(f'FILE {file_id} - -\n')
+                        writer.write(f'FILE {file_id} -\n')
 
                         previous_file_indx = file_indx
                         good_token_start = None
@@ -540,7 +540,7 @@ def main():
                         good_token_start = (previous_file_last_token + 1) - file_token_index_range[0]
 
                     for token, offset, prediction in list(zip(*token_data))[good_token_start:]:
-                        writer.write(f'{token} {file_id} {offset} {prediction}\n')
+                        writer.write(f'{token} {offset} {prediction}\n')
 
                     previous_file_last_token = file_token_index_range[1]
 

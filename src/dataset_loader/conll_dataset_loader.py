@@ -2,8 +2,11 @@
 
 import datasets
 
+# TODO: AJUSTAR
 # Variable que indica el inicio de un fichero en el dataset:
 _TAG_INI_FICH = '-'
+
+# Separador de las columnas
 _SEP = ' '
 
 
@@ -71,11 +74,11 @@ class PharmaconerConll(datasets.GeneratorBasedBuilder):
                 file_lines = f.read().splitlines()
 
             # Creamos las variables donde se guardaran los datos:
-            guid = 0
+            guid: int = 0
             fich_name: str = ''
-            tokens = []
-            offset = []
-            ner_tags = []
+            tokens: list[str] = []
+            offset: list[str] = []
+            ner_tags: list[str] = []
 
             # Iteramos sobre las líneas del fichero:
             for line in file_lines:
@@ -87,7 +90,7 @@ class PharmaconerConll(datasets.GeneratorBasedBuilder):
                 splits = line.split(_SEP)
 
                 # Comprobamos si es el inicio de un nuevo documento:
-                if splits[3] == _TAG_INI_FICH:
+                if splits[-1] == _TAG_INI_FICH:
 
                     # Si ya hay tokens (un fichero anterior) se mandan los datos
                     if tokens:
@@ -111,7 +114,7 @@ class PharmaconerConll(datasets.GeneratorBasedBuilder):
                 else:
                     tokens.append(splits[0].strip())
                     offset.append(splits[2].strip())
-                    ner_tags.append(splits[3].strip())
+                    ner_tags.append(splits[-1].strip())
 
             # El último fichero (que nunca va a ser seguido por otro):
             yield guid, {
