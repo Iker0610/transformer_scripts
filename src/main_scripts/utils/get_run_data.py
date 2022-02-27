@@ -5,7 +5,9 @@ from glob import glob as get_files
 
 from pandas import DataFrame
 
-ROOT = '/tartalo03/users/udixa/ikasiker/Eriberta/eriberta_evaluation/results/pharmaconer-bsc'
+EXPERIMENT_RESULT_OUTPUT_CSV = '/tartalo03/users/udixa/ikasiker/Eriberta/eriberta_evaluation/results/pharmaconer-bsc/experiment_results.csv'
+
+EXPERIMENT_OUTPUT_ROOT = '/tartalo03/users/udixa/ikasiker/Eriberta/eriberta_evaluation/results/pharmaconer-bsc'
 
 column_rename = {
     'eval_loss': 'Loss',
@@ -30,17 +32,21 @@ ordered_columns = [
 def get_experiment_results(model, experiment) -> list[dict[str, Union[str, int]]]:
     results = list()
 
-    for file in get_files(f'{ROOT}/{model}/{experiment}/*/eval_predictions_results.json'):
+    for file in get_files(f'{EXPERIMENT_OUTPUT_ROOT}/{model}/{experiment}/*/eval_predictions_results.json'):
+
         with open(file, encoding='utf8') as file_hadler:
             results_json: dict[str, Union[str, int]] = json.load(file_hadler)
+
         results_json['model'] = model
         results_json['learning_rate'] = experiment
         results_json['dataset_split'] = 'dev'
         results.append(results_json)
 
-    for file in get_files(f'{ROOT}/{model}/{experiment}/*/test_predictions_results.json'):
+    for file in get_files(f'{EXPERIMENT_OUTPUT_ROOT}/{model}/{experiment}/*/test_predictions_results.json'):
+
         with open(file, encoding='utf8') as file_hadler:
             results_json: dict[str, Union[str, int]] = json.load(file_hadler)
+
         results_json['model'] = model
         results_json['learning_rate'] = experiment
         results_json['dataset_split'] = 'test'
@@ -50,14 +56,14 @@ def get_experiment_results(model, experiment) -> list[dict[str, Union[str, int]]
 
 
 def get_model_results(model: str) -> list[dict[str, Union[str, int]]]:
-    experiments: list[str] = list(os.walk(f'{ROOT}/{model}'))[0][1]
+    experiments: list[str] = list(os.walk(f'{EXPERIMENT_OUTPUT_ROOT}/{model}'))[0][1]
     return [result for experiment in experiments for result in get_experiment_results(model, experiment)]
 
 
 def main():
-    models = list(os.walk(ROOT))[0][1]
+    models = list(os.walk(EXPERIMENT_OUTPUT_ROOT))[0][1]
     results = [result for model in models for result in get_model_results(model)]
-    DataFrame(results).rename(columns=column_rename).to_csv('/tartalo03/users/udixa/ikasiker/Eriberta/eriberta_evaluation/results/pharmaconer-bsc/experiment_results.csv', index_label='Index', columns=ordered_columns)
+    DataFrame(results).rename(columns=column_rename).to_csv(EXPERIMENT_RESULT_OUTPUT_CSV, index_label='Index', columns=ordered_columns)
 
 
 if __name__ == '__main__':

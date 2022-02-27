@@ -1,3 +1,4 @@
+import argparse
 import os
 import shutil
 import sys
@@ -17,17 +18,23 @@ FILES_TO_REMOVE = [
 ]
 
 
-def clean_path(folder_path: str):
-    for file in FILES_TO_REMOVE:
-        try:
-            os.remove(f'{folder_path}/{file}')
-        except FileNotFoundError as e:
-            pass
+def clean_path(folder_path: str, delete_best_model: bool):
+    if delete_best_model:
+        for file in FILES_TO_REMOVE:
+            try:
+                os.remove(f'{folder_path}/{file}')
+            except FileNotFoundError as e:
+                pass
 
     for experiment_folder in get_files(f'{folder_path}/checkpoint*'):
         shutil.rmtree(experiment_folder)
 
 
 if __name__ == '__main__':
-    for folder in get_files(sys.argv[1]):
-        clean_path(folder)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-i', '--input_folder', type=str, required=True, help='Experiment output folder.')
+    parser.add_argument('--delete_best_model', action='store_true')
+    args = vars(parser.parse_args())
+
+    for folder in get_files(args['input_folder']):
+        clean_path(folder, args['delete_best_model'])

@@ -407,7 +407,6 @@ def main():
 
                     previous_word_idx = word_idx
 
-
             tokenized_inputs.setdefault('overflow_to_sample_index_mapping', []).append((first_word_indx, last_word_indx))
             tokenized_inputs.setdefault('labels', []).append(label_ids)
 
@@ -468,7 +467,6 @@ def main():
                     final_results[key] = float(value)
             return final_results
 
-
         trainer = Trainer(
             model=model,
             args=training_args,
@@ -491,7 +489,6 @@ def main():
     def predict_and_save_to_conll(prediction_dataset: str, output_file: str):
         prediction_dataset = tokenized_datasets[prediction_dataset]
         output_predictions_file = os.path.join(training_args.output_dir, output_file)
-
 
         prediction_results = trainer.evaluate(eval_dataset=prediction_dataset)
 
