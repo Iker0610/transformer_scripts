@@ -36,7 +36,7 @@ from transformers import (
     PreTrainedTokenizerFast,
     Trainer,
     TrainingArguments,
-    set_seed,
+    set_seed, EarlyStoppingCallback,
 )
 from transformers.trainer_utils import is_main_process
 
@@ -159,20 +159,41 @@ class DataTrainingArguments:
         self.task_name = self.task_name.lower()
 
 
+@dataclass
+class EarlyStoppingArguments:
+    """
+    Arguments pertaining to early stopping configuration
+    """
+    early_stopping: bool = field(
+        default=True,
+        metadata={"help": "Activate early stopping. It requires save_best_model to be set and set everything to steps instead of epochs."},
+    ),
+
+    early_stopping_patience: int = field(
+        default=1,
+        metadata={"help": "Use with metric_for_best_model to stop training when the specified metric worsens for early_stopping_patience evaluation calls."},
+    ),
+
+    early_stopping_threshold: float = field(
+        default=0.0,
+        metadata={"help": " Use with TrainingArguments metric_for_best_model and early_stopping_patience to denote how much the specified metric must improve to satisfy early stopping conditions."},
+    ),
+
+
 def main():
     # See all possible arguments in src/transformers/training_args.py
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
+    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments, EarlyStoppingArguments))
 
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
-        model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
+        model_args, data_args, training_args, early_stopping_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
 
     else:
-        model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+        model_args, data_args, training_args, early_stopping_args = parser.parse_args_into_dataclasses()
 
     if (
             os.path.exists(training_args.output_dir)
@@ -206,6 +227,15 @@ def main():
 
     # Set seed before initializing model.
     set_seed(training_args.seed)
+
+    # Load training callbacks
+    callbacks = []
+
+    if early_stopping_args.early_stopping:
+        callbacks.append(EarlyStoppingCallback(
+            early_stopping_patience=early_stopping_args.early_stopping_patience,
+            early_stopping_threshold=early_stopping_args.early_stopping_threshold,
+        ))
 
     # Get the datasets: you can either provide your own CSV/JSON/TXT training and evaluation files (see below)
     # or just provide the name of one of the public datasets available on the hub at https://huggingface.co/datasets/
@@ -475,6 +505,7 @@ def main():
             tokenizer=tokenizer,
             data_collator=data_collator,
             compute_metrics=compute_metrics,
+            callbacks=callbacks,
         )
     else:
         trainer = Trainer(
