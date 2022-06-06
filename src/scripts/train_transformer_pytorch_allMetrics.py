@@ -165,12 +165,12 @@ class EarlyStoppingArguments:
     Arguments pertaining to early stopping configuration
     """
     early_stopping: bool = field(
-        default=True,
+        default=False,
         metadata={"help": "Activate early stopping. It requires save_best_model to be set and set everything to steps instead of epochs."},
     )
 
     early_stopping_patience: int = field(
-        default=1,
+        default=3,
         metadata={"help": "Use with metric_for_best_model to stop training when the specified metric worsens for early_stopping_patience evaluation calls."},
     )
 
@@ -560,6 +560,7 @@ def main():
             tokenizer=tokenizer,
             data_collator=data_collator,
             compute_metrics=compute_metrics,
+            callbacks=callbacks,
         )
     else:
         trainer = Trainer(
