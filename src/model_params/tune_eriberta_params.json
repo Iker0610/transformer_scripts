@@ -1,0 +1,49 @@
+{
+  "do_train": true,
+  "do_eval": true,
+  "do_predict": true,
+
+
+  "do_hyperparameter_optimization": true,
+  "n_trials": 3,
+  "perturbation_interval": 1,
+  "burn_in_period": 5,
+
+  "ray_cpu_number": 1,
+  "ray_gpu_number": 1,
+  "ray_directory": "E:\\DEV\\TFG\\eriberta_eval\\hyperparameter_output\\ray_results",
+
+
+  "train_file": "E:\\DEV\\TFG\\eriberta_eval\\corpus\\Pharmaconer\\conll\\train.conll",
+  "dev_file": "E:\\DEV\\TFG\\eriberta_eval\\corpus\\Pharmaconer\\conll\\dev.conll",
+  "test_file": "E:\\DEV\\TFG\\eriberta_eval\\corpus\\Pharmaconer\\conll\\test.conll",
+
+  "dataset_loading_script": "E:\\DEV\\TFG\\eriberta_eval\\corpus\\Pharmaconer\\conll_dataset_loader.py",
+  "dataset_cache_dir": "E:\\DEV\\TFG\\eriberta_eval\\cache",
+  "overwrite_cache": false,
+
+  "model_path": "E:\\DEV\\TFG\\models\\eriberta",
+  "output_dir": "E:\\DEV\\TFG\\eriberta_eval\\hyperparameter_output",
+  "overwrite_output_dir": true,
+
+  "pad_to_max_length": true,
+  "use_sliding_window": true,
+  "stride_size": 0,
+  "return_entity_level_metrics": true,
+
+  "learning_rate": 5e-5,
+  "seed": 30,
+
+  "evaluation_strategy": "epoch",
+  "save_strategy" : "epoch",
+  "metric_for_best_model": "micro_f1",
+  "save_total_limit": 1,
+  "load_best_model_at_end": true,
+
+  "fp16": true,
+
+  "num_train_epochs": 10,
+  "per_device_train_batch_size": 4,
+  "per_device_eval_batch_size": 4,
+  "gradient_accumulation_steps": 8
+}

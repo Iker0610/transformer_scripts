@@ -167,17 +167,65 @@ class EarlyStoppingArguments:
     early_stopping: bool = field(
         default=True,
         metadata={"help": "Activate early stopping. It requires save_best_model to be set and set everything to steps instead of epochs."},
-    ),
+    )
 
     early_stopping_patience: int = field(
         default=1,
         metadata={"help": "Use with metric_for_best_model to stop training when the specified metric worsens for early_stopping_patience evaluation calls."},
-    ),
+    )
 
     early_stopping_threshold: float = field(
         default=0.0,
-        metadata={"help": " Use with TrainingArguments metric_for_best_model and early_stopping_patience to denote how much the specified metric must improve to satisfy early stopping conditions."},
-    ),
+        metadata={"help": "Use with TrainingArguments metric_for_best_model and early_stopping_patience to denote how much the specified metric must improve to satisfy early stopping conditions."},
+    )
+
+
+@dataclass
+class HyperparameterOptimizationArguments:
+    """
+    Arguments pertaining to hyperparameter optimization configuration
+    """
+    do_hyperparameter_optimization: bool = field(
+        default=False,
+        metadata={"help": "Activate hyperparameter optimization using raytune and population-based optimization."}
+    )
+
+    ray_directory: str = field(
+        default='~/ray_tune'
+    )
+
+    ray_experiment_name: str = field(
+        default='tune_transformer_pbt'
+    )
+
+    ray_cpu_number: int = field(
+        default=1
+    )
+
+    ray_gpu_number: int = field(
+        default=0
+    )
+
+    keep_checkpoints_num: int = field(
+        default=1
+    )
+
+    n_trials: int = field(
+        default=10,
+        metadata={"help": " The number of trial runs with different hyperparameters to test."}
+    )
+
+    smoke_test: bool = field(
+        default=False
+    )
+
+    perturbation_interval: float = field(
+        default=1
+    )
+
+    burn_in_period: float = field(
+        default=0
+    )
 
 
 def main():
@@ -185,15 +233,21 @@ def main():
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments, EarlyStoppingArguments))
+    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments, EarlyStoppingArguments, HyperparameterOptimizationArguments))
 
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
-        model_args, data_args, training_args, early_stopping_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
+        model_args: ModelArguments
+        data_args: DataTrainingArguments
+        training_args: TrainingArguments
+        early_stopping_args: EarlyStoppingArguments
+        hp_tune_args: HyperparameterOptimizationArguments
+
+        model_args, data_args, training_args, early_stopping_args, hp_tune_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
 
     else:
-        model_args, data_args, training_args, early_stopping_args = parser.parse_args_into_dataclasses()
+        model_args, data_args, training_args, early_stopping_args, hp_tune_args = parser.parse_args_into_dataclasses()
 
     if (
             os.path.exists(training_args.output_dir)
@@ -248,17 +302,17 @@ def main():
     # download the dataset.
 
     data_files = {}
-    if training_args.do_train:
+    if training_args.do_train or hp_tune_args.do_hyperparameter_optimization:
         if data_args.train_file is not None:
             data_files["train"] = data_args.train_file
         else:
-            raise ValueError("Need a training file for training.")
+            raise ValueError("Need a training file for training or hyperparameter optimization.")
 
-    if training_args.do_eval:
+    if training_args.do_eval or hp_tune_args.do_hyperparameter_optimization:
         if data_args.dev_file is not None:
             data_files["dev"] = data_args.dev_file
         else:
-            raise ValueError("Need a dev file for evaluating.")
+            raise ValueError("Need a dev file for evaluating or hyperparameter optimization.")
 
     if training_args.do_predict:
         if data_args.test_file is not None:
@@ -279,11 +333,11 @@ def main():
     # Generamos los datasets
     datasets = load_dataset(loading_script, data_files=data_files, cache_dir=data_args.dataset_cache_dir)
 
-    if training_args.do_train:
+    if training_args.do_train or hp_tune_args.do_hyperparameter_optimization:
         column_names = datasets["train"].column_names
         features = datasets["train"].features
 
-    elif training_args.do_eval:
+    elif training_args.do_eval or hp_tune_args.do_hyperparameter_optimization:
         column_names = datasets["dev"].column_names
         features = datasets["dev"].features
 
@@ -311,7 +365,7 @@ def main():
         # No need to convert the labels since they are already ints.
         label_to_id = {i: i for i in range(len(label_list))}
 
-    elif training_args.do_train:
+    elif training_args.do_train or hp_tune_args.do_hyperparameter_optimization:
         label_list = get_label_list(datasets["train"][label_column_name])
         label_to_id = {l: i for i, l in enumerate(label_list)}
 
@@ -335,12 +389,13 @@ def main():
     )
 
     # Se carga el modelo
-    model = AutoModelForTokenClassification.from_pretrained(
-        model_args.model_path,
-        from_tf=bool(".ckpt" in model_args.model_path),
-        config=config,
-        cache_dir=model_args.cache_dir,
-    )
+    def model_init():
+        return AutoModelForTokenClassification.from_pretrained(
+            model_args.model_path,
+            from_tf=bool(".ckpt" in model_args.model_path),
+            config=config,
+            cache_dir=model_args.cache_dir,
+        )
 
     # Cargamos el tokenizador
     tokenizer = AutoTokenizer.from_pretrained(
@@ -466,39 +521,49 @@ def main():
     data_collator = DataCollatorForTokenClassification(tokenizer)
 
     # Metrics
-    if any((training_args.do_train, training_args.do_eval, training_args.do_predict)):
-        metric = load_metric("../seqeval_allMetrics.py")
+    metric = load_metric("../seqeval_allMetrics.py")
 
-        def compute_metrics(p):
-            predictions, labels = p
-            predictions = np.argmax(predictions, axis=2)
+    def compute_metrics(p):
+        predictions, labels = p
+        predictions = np.argmax(predictions, axis=2)
 
-            # Remove ignored index (special tokens)
-            true_predictions = [
-                [label_list[p] for (p, l) in zip(prediction, label) if l != -100]
-                for prediction, label in zip(predictions, labels)
-            ]
-            true_labels = [
-                [label_list[l] for (p, l) in zip(prediction, label) if l != -100]
-                for prediction, label in zip(predictions, labels)
-            ]
+        # Remove ignored index (special tokens)
+        true_predictions = [
+            [label_list[p] for (p, l) in zip(prediction, label) if l != -100]
+            for prediction, label in zip(predictions, labels)
+        ]
+        true_labels = [
+            [label_list[l] for (p, l) in zip(prediction, label) if l != -100]
+            for prediction, label in zip(predictions, labels)
+        ]
 
-            results = metric.compute(predictions=true_predictions, references=true_labels)
+        results = metric.compute(predictions=true_predictions, references=true_labels)
 
-            # Unpack nested dictionaries
-            final_results = {}
+        # Unpack nested dictionaries
+        final_results = {}
 
-            for key, value in results.items():
-                if isinstance(value, dict):
-                    if data_args.return_entity_level_metrics:
-                        for n, v in value.items():
-                            final_results[f"{key}_{n}"] = float(v)
-                else:
-                    final_results[key] = float(value)
-            return final_results
+        for key, value in results.items():
+            if isinstance(value, dict):
+                if data_args.return_entity_level_metrics:
+                    for n, v in value.items():
+                        final_results[f"{key}_{n}"] = float(v)
+            else:
+                final_results[key] = float(value)
+        return final_results
 
+    if hp_tune_args.do_hyperparameter_optimization:
         trainer = Trainer(
-            model=model,
+            model_init=model_init,
+            args=training_args,
+            train_dataset=tokenized_datasets["train"],
+            eval_dataset=tokenized_datasets["dev"],
+            tokenizer=tokenizer,
+            data_collator=data_collator,
+            compute_metrics=compute_metrics,
+        )
+    else:
+        trainer = Trainer(
+            model=model_init(),
             args=training_args,
             train_dataset=tokenized_datasets["train"] if training_args.do_train else None,
             eval_dataset=tokenized_datasets["dev"] if training_args.do_eval else None,
@@ -506,15 +571,6 @@ def main():
             data_collator=data_collator,
             compute_metrics=compute_metrics,
             callbacks=callbacks,
-        )
-    else:
-        trainer = Trainer(
-            model=model,
-            args=training_args,
-            train_dataset=tokenized_datasets["train"] if training_args.do_train else None,
-            eval_dataset=tokenized_datasets["dev"] if training_args.do_eval else None,
-            tokenizer=tokenizer,
-            data_collator=data_collator,
         )
 
     def predict_and_save_to_conll(prediction_dataset: str, output_file: str):
@@ -575,8 +631,58 @@ def main():
 
                     previous_file_last_token = file_token_index_range[1]
 
+    # Hyperparameter Optimization
+    if hp_tune_args.do_hyperparameter_optimization:
+        # Imports
+        from ray import tune
+        from ray.tune import CLIReporter
+        from ray.tune.schedulers import PopulationBasedTraining
+
+        # Deshabilitamos las barras de cargas (dan problemas en windows)
+        training_args.disable_tqdm = True
+
+        # Configuramos algunos parámetros iniciales
+        tune_config = {
+            "max_steps": 1 if hp_tune_args.smoke_test else -1,  # Used for smoke test.
+            "seed": tune.uniform(1, 40),
+        }
+
+        scheduler = PopulationBasedTraining(
+            time_attr="training_iteration",
+            metric=f'eval_{training_args.metric_for_best_model}',
+            mode="max" if training_args.greater_is_better else "min",
+            perturbation_interval=hp_tune_args.perturbation_interval,
+            burn_in_period=hp_tune_args.burn_in_period,
+            hyperparam_mutations={
+                "weight_decay": tune.uniform(0.0, 0.3),
+                "learning_rate": tune.uniform(1e-5, 5e-5),
+            },
+        )
+
+        reporter = CLIReporter(
+            parameter_columns={
+                "weight_decay": "w_decay",
+                "learning_rate": "lr",
+            },
+            metric_columns=["eval_micro_f1", "eval_loss", "epoch", "training_iteration"],
+        )
+
+        trainer.hyperparameter_search(
+            backend="ray",
+            hp_space=lambda _: tune_config,
+            scheduler=scheduler,
+            n_trials=hp_tune_args.n_trials,
+            resources_per_trial={"cpu": hp_tune_args.ray_cpu_number, "gpu": hp_tune_args.ray_gpu_number},
+            keep_checkpoints_num=hp_tune_args.keep_checkpoints_num,
+            stop={"training_iteration": 1} if hp_tune_args.smoke_test else None,
+            progress_reporter=reporter,
+            local_dir=hp_tune_args.ray_directory,
+            name=hp_tune_args.ray_experiment_name,
+            log_to_file=True,
+        )
+
     # Training
-    if training_args.do_train:
+    if training_args.do_train and not hp_tune_args.do_hyperparameter_optimization:
         train_result = trainer.train(
             model_path=model_args.model_path if os.path.isdir(model_args.model_path) else None
         )
