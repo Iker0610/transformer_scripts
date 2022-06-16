@@ -9,16 +9,17 @@
 
   "dataset_loading_script": "/tartalo03/users/udixa/ikasiker/Eriberta/eriberta_evaluation/corpus/pharmaconer-bsc/pharmaconer.py",
   "dataset_cache_dir": "/gscratch/users/idelaiglesia004/eriberta_evaluation/dataset_cache",
-  "overwrite_cache": true,
+  "overwrite_cache": false,
 
   "model_path": "/tartalo03/users/udixa/ikasiker/Eriberta/eriberta_models",
   "output_dir": "/gscratch/users/idelaiglesia004/eriberta_evaluation/model_output/pharmaconer-bsc/bio-cli/5e-5/prueba_X",
-  "overwrite_output_dir": true,
+  "overwrite_output_dir": false,
 
   "pad_to_max_length": true,
-  "use_sliding_window": false,
-  "stride_size": 0,
-  "return_entity_level_metrics": false,
+  "use_sliding_window": true,
+  "stride_size": 125,
+
+  "return_entity_level_metrics": true,
 
   "learning_rate": 5e-5,
   "seed": 10,

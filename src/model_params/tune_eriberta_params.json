@@ -24,11 +24,11 @@
 
   "model_path": "E:\\DEV\\TFG\\models\\eriberta",
   "output_dir": "E:\\DEV\\TFG\\eriberta_eval\\hyperparameter_output",
-  "overwrite_output_dir": true,
+  "overwrite_output_dir": false,
 
   "pad_to_max_length": true,
   "use_sliding_window": true,
-  "stride_size": 0,
+  "stride_size": 125,
   "return_entity_level_metrics": true,
 
   "learning_rate": 5e-5,

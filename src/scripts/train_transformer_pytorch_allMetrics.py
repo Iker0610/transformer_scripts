@@ -175,7 +175,7 @@ class EarlyStoppingArguments:
     )
 
     early_stopping_threshold: float = field(
-        default=0.0,
+        default=0.0001,
         metadata={"help": "Use with TrainingArguments metric_for_best_model and early_stopping_patience to denote how much the specified metric must improve to satisfy early stopping conditions."},
     )
 
