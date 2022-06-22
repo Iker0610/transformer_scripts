@@ -36,5 +36,4 @@ if __name__ == '__main__':
     parser.add_argument('--delete_best_model', action='store_true')
     args = vars(parser.parse_args())
 
-    for folder in get_files(args['input_folder']):
-        clean_path(folder, args['delete_best_model'])
+    clean_path(args['input_folder'], args['delete_best_model'])
