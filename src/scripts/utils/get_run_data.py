@@ -1,20 +1,22 @@
+import argparse
 import json
 import os
-from typing import Union
 from glob import glob as get_files
+from typing import Union
 
 from pandas import DataFrame
 
-EXPERIMENT_RESULT_OUTPUT_CSV = '/tartalo03/users/udixa/ikasiker/Eriberta/eriberta_evaluation/results/pharmaconer-bsc/experiment_results.csv'
-
-EXPERIMENT_OUTPUT_ROOT = '/tartalo03/users/udixa/ikasiker/Eriberta/eriberta_evaluation/results/pharmaconer-bsc'
+# ROOT = '/gscratch4/users/idelaiglesia004/eriberta_evaluation/model_output/pharmaconer-bsc'
 
 column_rename = {
     'eval_loss': 'Loss',
-    'eval_precision': 'Precision',
-    'eval_recall': 'Recall',
-    'eval_f1': 'F1',
-    'eval_accuracy': 'Accuracy'
+    'eval_micro_precision': 'Micro Precision',
+    'eval_micro_recall': 'Micro Recall',
+    'eval_micro_f1': 'Micro F1',
+    'eval_macro_precision': 'Macro Precision',
+    'eval_macro_recall': 'Macro Recall',
+    'eval_macro_f1': 'Macro F1',
+    'eval_overall_accuracy': 'Accuracy'
 }
 
 ordered_columns = [
@@ -29,24 +31,20 @@ ordered_columns = [
 ]
 
 
-def get_experiment_results(model, experiment) -> list[dict[str, Union[str, int]]]:
+def get_experiment_results(input_folder: str, model, experiment) -> list[dict[str, Union[str, int]]]:
     results = list()
 
-    for file in get_files(f'{EXPERIMENT_OUTPUT_ROOT}/{model}/{experiment}/*/eval_predictions_results.json'):
-
+    for file in get_files(f'{input_folder}/{model}/{experiment}/*/eval_predictions_results.json'):
         with open(file, encoding='utf8') as file_hadler:
             results_json: dict[str, Union[str, int]] = json.load(file_hadler)
-
         results_json['model'] = model
         results_json['learning_rate'] = experiment
         results_json['dataset_split'] = 'dev'
         results.append(results_json)
 
-    for file in get_files(f'{EXPERIMENT_OUTPUT_ROOT}/{model}/{experiment}/*/test_predictions_results.json'):
-
+    for file in get_files(f'{input_folder}/{model}/{experiment}/*/test_predictions_results.json'):
         with open(file, encoding='utf8') as file_hadler:
             results_json: dict[str, Union[str, int]] = json.load(file_hadler)
-
         results_json['model'] = model
         results_json['learning_rate'] = experiment
         results_json['dataset_split'] = 'test'
@@ -55,16 +53,21 @@ def get_experiment_results(model, experiment) -> list[dict[str, Union[str, int]]
     return results
 
 
-def get_model_results(model: str) -> list[dict[str, Union[str, int]]]:
-    experiments: list[str] = list(os.walk(f'{EXPERIMENT_OUTPUT_ROOT}/{model}'))[0][1]
-    return [result for experiment in experiments for result in get_experiment_results(model, experiment)]
+def get_model_results(input_folder: str, model: str) -> list[dict[str, Union[str, int]]]:
+    experiments: list[str] = list(os.walk(f'{input_folder}/{model}'))[0][1]
+    return [result for experiment in experiments for result in get_experiment_results(input_folder, model, experiment)]
 
 
-def main():
-    models = list(os.walk(EXPERIMENT_OUTPUT_ROOT))[0][1]
-    results = [result for model in models for result in get_model_results(model)]
-    DataFrame(results).rename(columns=column_rename).to_csv(EXPERIMENT_RESULT_OUTPUT_CSV, index_label='Index', columns=ordered_columns)
+def main(input_folder: str, output_file: str = './experiment_results.csv'):
+    models = list(os.walk(input_folder))[0][1]
+    results = [result for model in models for result in get_model_results(input_folder, model)]
+    DataFrame(results).rename(columns=column_rename).to_csv(output_file, index_label='Index')
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-i', '--input_folder', type=str, required=True, help='Experiment group folder.')
+    parser.add_argument('-o', '--output_file', type=str, default='./experiment_results.csv', help='CSV file output file.')
+    args = vars(parser.parse_args())
+
+    main(**args)
