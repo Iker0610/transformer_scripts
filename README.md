@@ -19,7 +19,7 @@
     │   └── EJEMPLO_OUTPUT-slurm-384.out                                # Ejemplo de output generado por una ejecución del proceso de finetuning
     
     └── scripts                                                         # Carpeta con los scripts
-        ├── train_transformer_pytorch_allMetrics.py                     # Script principal, sirve para finetunear y/o predecir/evaluar. Admite sliding-window para superar el límite de 512 tokens, y genera un CONLL con los resultados
+        ├── train_transformer_pytorch.py                                # Script principal, sirve para finetunear y/o predecir/evaluar. Admite sliding-window para superar el límite de 512 tokens, y genera un CONLL con los resultados
         ├── seqeval_allMetrics.py                                       # Versión editada del script de HuggingFace de las métricas seqeval para que devuelva el micro avg, macro avg y weighed avg.
         └── utils                                                       # Carpeta con scripts de utilidad
             ├── get_dataset_labels.py                                   # Script para obtener una lista con los tags/labels/clases únicos que haya presentes en el dataset 
@@ -131,9 +131,9 @@
   ```
   En cada uno de estos conll se esperan 3 columnas en el orden indicado. Por cada fichero (en caso de que haya varios) se espera tener una cabecera donde el `ner_tag` deberá ser igual que el indicado en `_TAG_INI_FICH` _[línea 7]_.
 
-  La función `predict_and_save_to_conll` del script `train_transformer_pytorch_allMetrics.py` se basa en este dataset, por tanto, en caso de que hayan más o menos columnas hay 2 opciones:
+  La función `predict_and_save_to_conll` del script `train_transformer_pytorch.py` se basa en este dataset, por tanto, en caso de que hayan más o menos columnas hay 2 opciones:
     - [Solución rápida pero sucia] Omitir las columnas que no estén indicadas. Y en caso de faltar en el conll alguna columna indicada (la única sería `line_offset`, si te falta otra tienes un problema) asignarle un valor arbitrario (como `'null-null'`) a mano en el script de carga.
-    - [Solución un poco más larga pero correcta] Editar los ficheros `conll_dataset_loader.py` y `train_transformer_pytorch_allMetrics.py` para que tengan en cuenta las nuevas columnas:
+    - [Solución un poco más larga pero correcta] Editar los ficheros `conll_dataset_loader.py` y `train_transformer_pytorch.py` para que tengan en cuenta las nuevas columnas:
       - En `conll_dataset_loader.py`:
 
         |      Lineas      | Descripción del cambio a realizar                                                                                                 |
@@ -143,7 +143,7 @@
         | 98-101 y 121-124 | Añadir a los diccionarios las variables que hayáis creado.                                                                        |
         |     115-117      | Añadir a las variables que sean lista el valor de la línea del CONLL.                                                             |
 
-      - En `train_transformer_pytorch_allMetrics.py`:
+      - En `train_transformer_pytorch.py`:
 
         | Líneas | Descripción del cambio a realizar                                                                                                                                                                                                                                                                                                                                                                                                                     |
         |:------:|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -156,7 +156,7 @@
       > **MUY IMPORTANTE** - **Siempre** tendréis que tener unas secciones: `id`, `tokens` y `ner-tags`, _con esos mismos nombres_. [ `id` es autoincremental ].
       >> **RECORDATORIO** - Cuando editéis los ficheros los offset del resto de pasos se desajustará, así que siempre comprobad la sección a editar en GitHub o en una versión sin editar.
 
-      > **DETALLES** - El script genera una instancia por cada archivo que localiza con el tag `_TAG_INI_FICH`. Es posible que sea necesario una instancia por cada párrafo, para lo que habría que editar el script de carga y seguramente la función que genera el conll en `train_transformer_pytorch_allMetrics.py`.
+      > **DETALLES** - El script genera una instancia por cada archivo que localiza con el tag `_TAG_INI_FICH`. Es posible que sea necesario una instancia por cada párrafo, para lo que habría que editar el script de carga y seguramente la función que genera el conll en `train_transformer_pytorch.py`.
 ------------------------
 
 ### Paso 3 - Preparar el fichero de parámetros

@@ -140,6 +140,13 @@ class DataTrainingArguments:
         }
     )
 
+    metric_script_path: str = field(
+        default='./seqeval_allMetrics.py',
+        metadata={
+            "help": "Path to the dataset loading script."
+        }
+    )
+
     def __post_init__(self):
         if self.train_file is None and self.dev_file is None and self.test_file is None:
             raise ValueError("Need a training/dev/test file.")
@@ -521,7 +528,7 @@ def main():
     data_collator = DataCollatorForTokenClassification(tokenizer)
 
     # Metrics
-    metric = load_metric("../seqeval_allMetrics.py")
+    metric = load_metric(data_args.metric_script_path)
 
     def compute_metrics(p, are_predictions_processed=False):
         if not are_predictions_processed:
