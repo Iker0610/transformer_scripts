@@ -523,19 +523,22 @@ def main():
     # Metrics
     metric = load_metric("../seqeval_allMetrics.py")
 
-    def compute_metrics(p):
-        predictions, labels = p
-        predictions = np.argmax(predictions, axis=2)
+    def compute_metrics(p, are_predictions_processed=False):
+        if not are_predictions_processed:
+            predictions, labels = p
+            predictions = np.argmax(predictions, axis=2)
 
-        # Remove ignored index (special tokens)
-        true_predictions = [
-            [label_list[p] for (p, l) in zip(prediction, label) if l != -100]
-            for prediction, label in zip(predictions, labels)
-        ]
-        true_labels = [
-            [label_list[l] for (p, l) in zip(prediction, label) if l != -100]
-            for prediction, label in zip(predictions, labels)
-        ]
+            # Remove ignored index (special tokens)
+            true_predictions = [
+                [label_list[p] for (p, l) in zip(prediction, label) if l != -100]
+                for prediction, label in zip(predictions, labels)
+            ]
+            true_labels = [
+                [label_list[l] for (p, l) in zip(prediction, label) if l != -100]
+                for prediction, label in zip(predictions, labels)
+            ]
+        else:
+            true_predictions, true_labels = p
 
         results = metric.compute(predictions=true_predictions, references=true_labels)
 
@@ -575,33 +578,32 @@ def main():
         )
 
     def predict_and_save_to_conll(prediction_dataset: str, output_file: str):
-        prediction_dataset = tokenized_datasets[prediction_dataset]
-        output_predictions_file = os.path.join(training_args.output_dir, output_file)
 
-        prediction_results = trainer.evaluate(eval_dataset=prediction_dataset)
-
-        if trainer.is_world_process_zero():
-            # Log evaluation
-            logger.info("***** Eval results *****")
-            for key, value in prediction_results.items():
-                logger.info(f"  {key} = {value}")
-
-            # Save evaluation in json
-            with open(f'{output_predictions_file}_results.json', "w", encoding='utf8') as writer:
-                json.dump(prediction_results, writer)
-
-        # Guardar resultados en conll
-        predictions, labels, metrics = trainer.predict(prediction_dataset)
-        predictions = np.argmax(predictions, axis=2)
-
-        # Remove ignored index (special tokens)
-        true_predictions = [
-            [label_list[p] for (p, l) in zip(prediction, label) if l != -100]
-            for prediction, label in zip(predictions, labels)
-        ]
-
-        # Save predictions
         if trainer.is_world_process_zero() and data_args.task_name == 'ner':
+
+            prediction_dataset = tokenized_datasets[prediction_dataset]
+            output_predictions_file = os.path.join(training_args.output_dir, output_file)
+
+            predictions, labels, prediction_results = trainer.predict(prediction_dataset, metric_key_prefix='eval')
+
+            # Guardar resultados en conll
+            predictions = np.argmax(predictions, axis=2)
+
+            # Remove ignored index (special tokens)
+            true_predictions = [
+                [label_list[p] for (p, l) in zip(prediction, label) if l != -100]
+                for prediction, label in zip(predictions, labels)
+            ]
+
+            true_labels = [
+                [label_list[l] for (p, l) in zip(prediction, label) if l != -100]
+                for prediction, label in zip(predictions, labels)
+            ]
+
+            # Save predictions
+            merged_true_predictions: list[list] = []
+            merged_true_labels: list[list] = []
+
             previous_file_indx = None
             previous_file_last_token = None
 
@@ -609,9 +611,10 @@ def main():
                 for file_id, file_indx, file_token_index_range, *token_data in zip(prediction_dataset['id'],
                                                                                    prediction_dataset['overflow_to_sample_mapping'],
                                                                                    prediction_dataset['overflow_to_sample_index_mapping'],
+                                                                                   # The next is saved in *token_data
                                                                                    prediction_dataset['tokens'],
                                                                                    prediction_dataset['line_offset'],
-                                                                                   true_predictions):
+                                                                                   true_predictions, true_labels):
 
                     if file_token_index_range[0] is None or file_token_index_range[1] is None:
                         continue
@@ -624,13 +627,33 @@ def main():
                         previous_file_indx = file_indx
                         good_token_start = None
 
+                        merged_true_predictions[file_indx] = []
+                        merged_true_labels[file_indx] = []
+
                     else:
                         good_token_start = (previous_file_last_token + 1) - file_token_index_range[0]
 
-                    for token, offset, prediction in list(zip(*token_data))[good_token_start:]:
+                    for token, offset, prediction, label in list(zip(*token_data))[good_token_start:]:
                         writer.write(f'{token} {offset} {prediction}\n')
 
+                        merged_true_predictions[file_indx].append(prediction)
+                        merged_true_labels[file_indx].append(label)
+
                     previous_file_last_token = file_token_index_range[1]
+
+            # Make sliding window do not have advantage: update prediction_results with new metrics obtained from compute_metrics
+            prediction_results.update(
+                compute_metrics((merged_true_predictions, merged_true_labels), are_predictions_processed=True)
+            )
+
+            # Log evaluation
+            logger.info("***** Eval results *****")
+            for key, value in prediction_results.items():
+                logger.info(f"  {key} = {value}")
+
+            # Save evaluation in json
+            with open(f'{output_predictions_file}_results.json', "w", encoding='utf8') as writer:
+                json.dump(prediction_results, writer)
 
     # Hyperparameter Optimization
     if hp_tune_args.do_hyperparameter_optimization:
