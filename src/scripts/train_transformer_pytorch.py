@@ -584,14 +584,15 @@ def main():
             callbacks=callbacks,
         )
 
-    def predict_and_save_to_conll(prediction_dataset: str, output_file: str):
+    def predict_and_save_to_conll(prediction_dataset: str, output_file: str, metric_key_prefix: str = 'eval'):
 
         if trainer.is_world_process_zero() and data_args.task_name == 'ner':
 
             prediction_dataset = tokenized_datasets[prediction_dataset]
             output_predictions_file = os.path.join(training_args.output_dir, output_file)
 
-            predictions, labels, prediction_results = trainer.predict(prediction_dataset, metric_key_prefix='eval')
+            prediction_results = trainer.evaluate(prediction_dataset)
+            predictions, labels, _ = trainer.predict(prediction_dataset, metric_key_prefix=metric_key_prefix)
 
             # Guardar resultados en conll
             predictions = np.argmax(predictions, axis=2)
@@ -634,8 +635,8 @@ def main():
                         previous_file_indx = file_indx
                         good_token_start = None
 
-                        merged_true_predictions[file_indx] = []
-                        merged_true_labels[file_indx] = []
+                        merged_true_predictions.append([])
+                        merged_true_labels.append([])
 
                     else:
                         good_token_start = (previous_file_last_token + 1) - file_token_index_range[0]
@@ -649,9 +650,13 @@ def main():
                     previous_file_last_token = file_token_index_range[1]
 
             # Make sliding window do not have advantage: update prediction_results with new metrics obtained from compute_metrics
-            prediction_results.update(
-                compute_metrics((merged_true_predictions, merged_true_labels), are_predictions_processed=True)
-            )
+            merged_metrics = compute_metrics((merged_true_predictions, merged_true_labels), are_predictions_processed=True)
+
+            for key in list(merged_metrics.keys()):
+                if not key.startswith(f"{metric_key_prefix}_"):
+                    merged_metrics[f"{metric_key_prefix}_{key}"] = merged_metrics.pop(key)
+
+            prediction_results.update(merged_metrics)
 
             # Log evaluation
             logger.info("***** Eval results *****")
