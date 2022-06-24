@@ -38,7 +38,7 @@ from transformers import (
     TrainingArguments,
     set_seed, EarlyStoppingCallback,
 )
-from transformers.trainer_utils import is_main_process
+from transformers.trainer_utils import is_main_process, BestRun
 
 logger = logging.getLogger(__name__)
 
@@ -436,9 +436,6 @@ def main():
     # Tokenize all texts and align the labels with them.
     def tokenize_and_align_labels(examples):
         window_size = data_args.stride_size  # int(data_args.max_seq_length / 2)
-
-        # Calculamos el número de seps que tendremos que añadir:
-
         tokenized_inputs = tokenizer(
             examples[text_column_name],
             padding=padding,
@@ -449,7 +446,7 @@ def main():
             return_overflowing_tokens=data_args.use_sliding_window,
             stride=window_size,
             # We use this argument because the texts in our dataset are lists of words (with a label for each word).
-            is_split_into_words=True
+            is_split_into_words=True,
         )
 
         if not data_args.use_sliding_window:
@@ -582,6 +579,9 @@ def main():
         return final_results
 
     if hp_tune_args.do_hyperparameter_optimization:
+        # Deshabilitamos las barras de cargas (dan problemas en windows)
+        training_args.disable_tqdm = True
+
         trainer = Trainer(
             model_init=model_init,
             args=training_args,
@@ -694,13 +694,10 @@ def main():
         from ray.tune import CLIReporter
         from ray.tune.schedulers import PopulationBasedTraining
 
-        # Deshabilitamos las barras de cargas (dan problemas en windows)
-        training_args.disable_tqdm = True
-
         # Configuramos algunos parámetros iniciales
         tune_config = {
-            "max_steps": 1 if hp_tune_args.smoke_test else -1,  # Used for smoke test.
-            "seed": tune.uniform(1, 40),
+            "max_steps": 1 if hp_tune_args.smoke_test else training_args.max_steps,  # Used for smoke test.
+            "seed": tune.quniform(1, 40, 1),
         }
 
         scheduler = PopulationBasedTraining(
@@ -710,8 +707,8 @@ def main():
             perturbation_interval=hp_tune_args.perturbation_interval,
             burn_in_period=hp_tune_args.burn_in_period,
             hyperparam_mutations={
-                "weight_decay": tune.uniform(0.0, 0.3),
-                "learning_rate": tune.uniform(1e-5, 5e-5),
+                "weight_decay": tune.qloguniform(0.01, 0.3, 0.01),
+                "learning_rate": tune.qloguniform(1e-5, 5e-5, 1e-6),
             },
         )
 
@@ -719,12 +716,21 @@ def main():
             parameter_columns={
                 "weight_decay": "w_decay",
                 "learning_rate": "lr",
+                "seed": "seed",
             },
-            metric_columns=["eval_micro_f1", "eval_loss", "epoch", "training_iteration"],
+            metric_columns=["eval_micro_f1", "eval_macro_f1", "eval_loss", "epoch", "training_iteration"],
         )
 
-        trainer.hyperparameter_search(
+        def optimization_objective(metrics):
+            return metrics[f'eval_{training_args.metric_for_best_model}']
+
+        best_run: BestRun = trainer.hyperparameter_search(
             backend="ray",
+
+            compute_objective=optimization_objective,
+            direction="maximize" if training_args.greater_is_better else "minimize",
+            checkpoint_score_attr="training_iteration",
+
             hp_space=lambda _: tune_config,
             scheduler=scheduler,
             n_trials=hp_tune_args.n_trials,
@@ -736,6 +742,16 @@ def main():
             name=hp_tune_args.ray_experiment_name,
             log_to_file=True,
         )
+
+        logger.info(
+            "Best run:\n"
+            f"id:              {best_run.run_id}\n"
+            f"objective:       {best_run.objective}\n"
+            f"hyperparameters: {best_run.hyperparameters}\n"
+        )
+
+        with open(f'{hp_tune_args.ray_directory}/tuning_best_config.json', 'w', encoding='utf-8') as f:
+            json.dump(vars(best_run), f, ensure_ascii=False, indent=2)
 
     # Training
     if training_args.do_train and not hp_tune_args.do_hyperparameter_optimization:
