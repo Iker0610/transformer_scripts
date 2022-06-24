@@ -494,7 +494,7 @@ def main():
                 # Si no es un special token (start, end, padding, ...) le asignamos una etiqueta según la configuración
                 else:
                     if tokenizer.decode(token_encoded_id) == data_args.additional_sep_token:
-                        tokenized_inputs['input_ids'][file_fragment_index] = tokenizer.sep_token_id
+                        tokenized_inputs['input_ids'][file_fragment_index][indx] = tokenizer.sep_token_id
                         global_attention.append(1)
                     else:
                         global_attention.append(0)
